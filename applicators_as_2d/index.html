@@ -516,18 +516,28 @@ const FRAME_MODELS = ["index-mm/src", "index-mm", "world", "voxel"];
 /** Sample a loaded mask volume at a world-mm point. Used to shortlist frames:
  *  every target should land inside the target mask. */
 function maskSampler(){
-  const idx = CONFIG.masks.findIndex(m => m.label === CONFIG.targetMask);
-  if(idx < 0) return null;
-  const mv = nv.volumes[1 + masksLoaded.findIndex(m => m.label === CONFIG.targetMask)];
-  if(!mv || !mv.img) return null;
-  const d = [mv.dims[1], mv.dims[2], mv.dims[3]];
-  const img = mv.img2RAS();
-  return mm => {
-    const v = mv.mm2vox([mm[0], mm[1], mm[2]], true);
-    const x = Math.round(v[0]), y = Math.round(v[1]), z = Math.round(v[2]);
-    if(x < 0 || y < 0 || z < 0 || x >= d[0] || y >= d[1] || z >= d[2]) return 0;
-    return img[x + y*d[0] + z*d[0]*d[1]] > 0 ? 1 : 0;
-  };
+  if(!CONFIG.targetMask || !Array.isArray(CONFIG.masks)) return null;
+  // index into masksLoaded, not CONFIG.masks: a mask whose file 404'd is not
+  // in nv.volumes, and falling through to volumes[0] would sample the CT
+  const k = masksLoaded.findIndex(m => m.label === CONFIG.targetMask);
+  if(k < 0) return null;
+  try{
+    const mv = nv.volumes[1 + k];
+    if(!mv || !mv.img || !mv.dims) return null;
+    const d = [mv.dims[1], mv.dims[2], mv.dims[3]];
+    if(d.some(v => !Number.isFinite(v))) return null;
+    const img = mv.img2RAS();
+    if(!img) return null;
+    return mm => {
+      const v = mv.mm2vox([mm[0], mm[1], mm[2]], true);
+      const x = Math.round(v[0]), y = Math.round(v[1]), z = Math.round(v[2]);
+      if(x < 0 || y < 0 || z < 0 || x >= d[0] || y >= d[1] || z >= d[2]) return 0;
+      return img[x + y*d[0] + z*d[0]*d[1]] > 0 ? 1 : 0;
+    };
+  }catch(e){
+    console.warn("target mask unusable for shortlisting:", e);
+    return null;
+  }
 }
 
 /** Rank frames by: every target inside the volume, then inside the target
@@ -580,12 +590,6 @@ try{
   rawList = list;
   buildNeedles(activeFrame, activeSpec);
 
-  /* Narrow the field, then let the eye decide: the picker is live. */
-  const raws = rawPairs(list);
-  const {rows, usedMask} = shortlistFrames(raws);
-  frameStatus = {rows, usedMask};
-  buildFramePicker(rows, usedMask);
-
   const outside = needles.filter(n => !n.span);
   reportFrame();
 
@@ -602,6 +606,20 @@ try{
   console.warn("needles:", e);
   $("warn").innerHTML = `No needles loaded (${e.message}).<br>`
     + `Expected <code>${CONFIG.needles.url}</code> beside this page.`;
+}
+
+/* The frame picker is a convenience; a failure here must never be reported as
+   a needle-loading failure, and must never stop the needles from displaying. */
+if(needles.length){
+  try{
+    const {rows, usedMask} = shortlistFrames(rawPairs(rawList));
+    frameStatus = {rows, usedMask};
+    buildFramePicker(rows, usedMask);
+  }catch(e){
+    console.warn("frame picker unavailable:", e);
+    const fp = $("framePick");
+    if(fp) fp.hidden = true;
+  }
 }
 
 /** Current frame, plus how many targets land in the target mask. */
