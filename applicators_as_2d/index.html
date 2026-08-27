@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liver ablation viewer</title>
+<style>
+  :root{
+    --bg:#0a0c0e; --panel:#12161a; --line:#232a31; --line2:#2e3740;
+    --ink:#c6ced6; --dim:#6c7783; --accent:#f0b429;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);
+    display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;
+  }
+
+  header{
+    display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+    padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  header h1{margin:0;font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase}
+  header .meta{font:11px/1 var(--mono);color:var(--dim);letter-spacing:.04em}
+
+  main{display:grid;grid-template-columns:1fr 400px;min-height:0}
+  @media (max-width:1000px){
+    main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+    #needlePanel{border-left:0;border-top:1px solid var(--line);max-height:46vh}
+  }
+
+  #stage{position:relative;min-height:0;background:#000}
+  #gl{display:block;width:100%;height:100%;touch-action:none}
+
+  #status{position:absolute;inset:0;display:grid;place-content:center;gap:12px;background:var(--bg);text-align:center;padding:24px}
+  #status p{margin:0;font:11px/1.7 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+  #status.error p{color:#e5735e;text-transform:none;letter-spacing:0;max-width:52ch;text-align:left}
+  #status.error code{color:var(--accent)}
+
+  /* ---- needle panel ------------------------------------------------- */
+  #needlePanel{
+    border-left:1px solid var(--line);background:var(--panel);
+    padding:12px 14px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;min-height:0;
+  }
+  .ph{
+    display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    font:10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+  }
+  .ph em{font-style:normal;color:var(--ink);text-transform:none;letter-spacing:.03em;font-size:11px}
+
+  .viewbox{border:1px solid var(--line);background:#000;position:relative;line-height:0}
+  .viewbox canvas{width:100%;height:auto;display:block}
+  .viewbox figcaption{
+    position:absolute;left:6px;top:5px;font:10px/1.4 var(--mono);color:#8d99a5;
+    letter-spacing:.06em;text-shadow:0 0 5px #000;pointer-events:none;
+  }
+  .viewbox .rt{left:auto;right:6px;text-align:right}
+  #xsecWrap{max-width:280px;margin:0 auto;width:100%}
+
+  #empty{font:11px/1.6 var(--mono);color:var(--dim)}
+
+  /* ---- controls ------------------------------------------------------ */
+  footer{
+    border-top:1px solid var(--line);background:var(--panel);
+    padding:12px 16px 14px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;
+    max-height:34vh;overflow-y:auto;
+  }
+  .group{flex:1 1 210px;min-width:190px}
+  .group > h2{
+    font:10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+    margin:0 0 9px;font-weight:400;
+  }
+  .lbl{display:flex;justify-content:space-between;gap:8px;font:10px/1 var(--mono);
+       letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:10px 0 6px}
+  .lbl span{color:var(--ink);text-transform:none;letter-spacing:.03em}
+
+  .row{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .row:last-child{margin-bottom:0}
+  .swatch{width:9px;height:9px;flex:0 0 auto;border-radius:50%;box-shadow:0 0 0 1px #0006}
+  .name{font-size:12px;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .num{font:10px/1 var(--mono);color:var(--dim);flex:0 0 auto}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:none;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line2)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--line2)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:3px;height:16px;background:var(--accent);border:0;border-radius:0;margin-top:-7px}
+  input[type=range]::-moz-range-thumb{width:3px;height:16px;background:var(--accent);border:0;border-radius:0}
+  input[type=range]:focus-visible{outline:1px solid var(--accent);outline-offset:4px}
+  input[type=range]:disabled::-webkit-slider-thumb{background:var(--dim)}
+
+  select{font:11px/1 var(--mono);color:var(--ink);background:transparent;border:1px solid var(--line);padding:6px 7px;width:100%}
+  select:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
+  option{background:var(--panel)}
+
+  .buttons{display:flex;gap:5px;flex-wrap:wrap}
+  button{
+    font:10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink);background:transparent;border:1px solid var(--line);padding:8px 10px;cursor:pointer;
+  }
+  button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  button[aria-pressed=true]{border-color:var(--accent);color:var(--bg);background:var(--accent)}
+  button:disabled{opacity:.4;cursor:default}
+  button:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
+
+  .pick{
+    flex:1 1 auto;text-align:left;text-transform:none;letter-spacing:.02em;
+    font:12px/1 var(--sans);padding:7px 9px;
+  }
+  .toggle{width:26px;height:15px;flex:0 0 auto;border:1px solid var(--line);background:transparent;padding:0;position:relative;cursor:pointer}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:9px;height:9px;background:var(--dim)}
+  .toggle[aria-pressed=true]{border-color:var(--accent)}
+  .toggle[aria-pressed=true]::after{left:auto;right:2px;background:var(--accent)}
+
+  #needleList{max-height:132px;overflow-y:auto;padding-right:4px}
+  #frame{font:10px/1.4 var(--mono);color:var(--dim);letter-spacing:.05em;margin-top:-6px}
+  #framePick{border:1px solid var(--line);padding:7px 9px}
+  #framePick summary{font:10px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;
+    color:var(--dim);cursor:pointer;list-style:none}
+  #framePick summary::-webkit-details-marker{display:none}
+  #framePick summary::before{content:"+ ";color:var(--accent)}
+  #framePick[open] summary::before{content:"- "}
+  .fp{display:flex;flex-direction:column;gap:6px;margin-top:9px}
+  #fpShort{font:10px/1.7 var(--mono);color:var(--dim)}
+  #fpShort button{display:block;width:100%;text-align:left;text-transform:none;
+    letter-spacing:.02em;margin-top:4px;padding:6px 8px}
+  #warn{font:11px/1.6 var(--mono);color:#e5a05e;letter-spacing:.03em}
+  #loc{font:11px/1.6 var(--mono);color:var(--dim);letter-spacing:.03em;min-height:2.2em;word-break:break-word}
+  #loc b{color:var(--accent);font-weight:500}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Liver ablation viewer</h1>
+  <div class="meta" id="dims">loading…</div>
+</header>
+
+<main>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <div id="status"><p>Loading volume</p></div>
+  </div>
+
+  <aside id="needlePanel">
+    <div class="ph"><span>Needle view</span><em id="needleName">—</em></div>
+    <div id="frame"></div>
+    <details id="framePick">
+      <summary>Coordinate frame</summary>
+      <div class="fp">
+        <select id="fpModel" aria-label="Frame model"></select>
+        <select id="fpAxes" aria-label="Axis permutation"></select>
+        <div id="fpShort"></div>
+      </div>
+    </details>
+
+    <figure class="viewbox" style="margin:0">
+      <canvas id="longC" width="760" height="380"></canvas>
+      <figcaption>Along trajectory<br><span id="longNote">straightened reformat</span></figcaption>
+      <figcaption class="rt" id="longScale"></figcaption>
+    </figure>
+
+    <div id="xsecWrap">
+      <figure class="viewbox" style="margin:0">
+        <canvas id="xsecC" width="520" height="520"></canvas>
+        <figcaption>Probe's eye<br><span id="xsecNote"></span></figcaption>
+        <figcaption class="rt" id="xsecScale"></figcaption>
+      </figure>
+    </div>
+
+    <div>
+      <div class="lbl">Position <span id="depthV">—</span></div>
+      <input type="range" id="depth" min="0" max="1" step="0.1" value="0" disabled aria-label="Depth along needle">
+      <div class="lbl">Roll <span id="rollV">0°</span></div>
+      <input type="range" id="roll" min="0" max="359" step="1" value="0" disabled aria-label="Roll angle around needle axis">
+      <div class="lbl">Margin rings <span id="ringsV">5 / 10 mm</span></div>
+      <input type="range" id="rings" min="0" max="4" step="1" value="2" aria-label="Ablation margin ring radius">
+    </div>
+
+    <div id="warn"></div>
+  </aside>
+</main>
+
+<footer>
+  <div class="group">
+    <h2>Projection</h2>
+    <div class="buttons" id="views"></div>
+    <div class="row" style="margin-top:9px">
+      <button class="toggle" id="followT" aria-pressed="true" aria-label="Crosshair follows depth"></button>
+      <span class="name">Follow needle depth</span>
+    </div>
+    <div class="lbl">3D clip plane <span id="clipV">off</span></div>
+    <input type="range" id="clip" min="0" max="100" step="1" value="100" aria-label="3D clip plane depth">
+  </div>
+
+  <div class="group">
+    <h2>Window</h2>
+    <div class="buttons" id="presets"></div>
+    <div class="lbl">Level <span id="levelV">—</span></div>
+    <input type="range" id="level" min="-1000" max="1000" step="1" value="60" aria-label="Window level">
+    <div class="lbl">Width <span id="widthV">—</span></div>
+    <input type="range" id="width" min="1" max="2000" step="1" value="150" aria-label="Window width">
+  </div>
+
+  <div class="group">
+    <h2>Needles</h2>
+    <div id="needleList"></div>
+    <div class="lbl">Overlay opacity <span id="drawV">90%</span></div>
+    <input type="range" id="drawOp" min="0" max="1" step="0.05" value="0.9" aria-label="Needle overlay opacity">
+  </div>
+
+  <div class="group" id="maskGroup" hidden>
+    <h2>Masks</h2>
+  </div>
+
+  <div class="group">
+    <h2>Cursor</h2>
+    <div id="loc">click the image to place the crosshair</div>
+  </div>
+</footer>
+
+<script type="module">
+/* ==================================================================== *
+ *  CONFIG — edit these paths, then push the folder to GitHub Pages.
+ *  Folder contents: index.html  niivue.js  *.nii.gz  needles.json
+ * ==================================================================== */
+const CONFIG = {
+  volume:  {url: "ct.nii.gz", colormap: "gray"},
+  needles: {url: "needles.json"},
+
+  // What the needle coordinates mean. Paste both values from diagnose.py.
+  //   "index-mm"      mm from the array corner: voxel = value / spacing
+  //   "index-mm/src"  same, but spacing taken in the coordinates' own axis
+  //                   order — use when the loader transposes the volume
+  //   "world"         NIfTI world mm, through the full affine
+  //   "voxel"         already a voxel index
+  // If these are wrong the page detects it on load and says so.
+  needleFrame: "index-mm",
+  needleTransform: "+z +y +x",     // nifty2np does out.transpose(): (i,j,k) -> (k,j,i)
+  // Mask the targets should land in. Used only to shortlist frames in the
+  // picker — set it to one of the mask labels below, or "" to disable.
+  targetMask: "Tumour",
+
+  // Optional segmentations. Delete entries you don't have.
+  masks: [
+    {url: "liver.nii.gz",  label: "Liver",  colormap: "green", opacity: 0.25},
+    {url: "tumour.nii.gz", label: "Tumour", colormap: "red",   opacity: 0.50},
+  ],
+  maskCal: {calMin: 0.5, calMax: 1},
+
+  startView: "multiplanar",       // axial | coronal | sagittal | multiplanar | render
+  window:    {level: 60, width: 150},   // liver CT, in HU
+  needleRadiusVox: 2,             // thickness of the needle drawn into the 3 projections
+  longFovMargin: 20,              // mm of context beyond the in-volume trajectory
+  xsecFov: 70,                    // mm across the probe's-eye view
+};
+
+const PRESETS = {           // name: [level, width] in HU
+  Liver: [30, 150], "Soft tissue": [50, 400], Abdomen: [50, 350],
+  Bone: [400, 2000], Lung: [-600, 1500],
+};
+const RING_STEPS = [[0], [5], [5,10], [5,10,15], [5,10,15,20]];
+
+const $ = id => document.getElementById(id);
+const statusBox = $("status");
+const fail = html => { statusBox.className = "error"; statusBox.innerHTML = `<p>${html}</p>`; };
+
+/* ---------- vector helpers ------------------------------------------- */
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const len=a=>Math.hypot(a[0],a[1],a[2]);
+const norm=a=>{const l=len(a)||1;return[a[0]/l,a[1]/l,a[2]/l];};
+
+function makePath(pts){
+  const cum=[0];
+  for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+len(sub(pts[i],pts[i-1])));
+  const L=cum[cum.length-1];
+  const seg=t=>{let i=0; while(i<cum.length-2 && cum[i+1]<t) i++; return i;};
+  const tangentAt=t=>{
+    if(pts.length<2) return [0,0,1];
+    return norm(sub(pts[seg(Math.max(0,Math.min(L,t)))+1], pts[seg(Math.max(0,Math.min(L,t)))]));
+  };
+  const pointAt=t=>{
+    if(pts.length<2) return pts[0].slice();
+    if(t<=0) return add(pts[0], mul(tangentAt(0), t));
+    if(t>=L) return add(pts[pts.length-1], mul(tangentAt(L), t-L));
+    const i=seg(t), f=(t-cum[i])/((cum[i+1]-cum[i])||1);
+    return add(pts[i], mul(sub(pts[i+1],pts[i]), f));
+  };
+  return {pts, cum, length:L, pointAt, tangentAt,
+          chord: pts.length>1 ? norm(sub(pts[pts.length-1],pts[0])) : [0,0,1]};
+}
+function frame(d){
+  d=norm(d);
+  const ref = Math.abs(d[2])>0.95 ? [0,1,0] : [0,0,1];
+  const u=norm(cross(d,ref));
+  return {d, u, v:cross(d,u)};
+}
+
+/* ---------- load the vendored bundle ---------------------------------- */
+let Niivue, SLICE_TYPE, cmapper;
+try{
+  ({Niivue, SLICE_TYPE, cmapper} = await import("./niivue.js"));
+  if(typeof Niivue !== "function")
+    throw new TypeError(`niivue.js exports no Niivue constructor (got ${typeof Niivue}). `
+      + `Wrong build: use dist/index.js, not dist/index.min.js.`);
+}catch(err){ console.error(err); await diagnose(err); throw err; }
+
+async function diagnose(err){
+  const url = new URL("./niivue.js", location.href).href;
+  const lines = [`<b>${err.name}:</b> ${err.message}`, `Resolved to <code>${url}</code>`];
+  if(location.protocol === "file:"){
+    lines.push(`Opening from the filesystem blocks module imports. Run
+                <code>python3 -m http.server</code> here and use
+                <code>http://localhost:8000</code>.`);
+    return report(lines);
+  }
+  let res;
+  try{ res = await fetch(url, {cache:"no-store"}); }
+  catch(e){ lines.push(`Not fetchable (${e.message}).`); return report(lines); }
+  const type = res.headers.get("content-type") || "(none)";
+  lines.push(`HTTP ${res.status} · <code>${type}</code>`);
+  if(!res.ok){ lines.push(`Not being served — confirm it is committed next to this page.`); return report(lines); }
+  const text = await res.text();
+  if(/^\s*</.test(text)) lines.push(`That is HTML, not JavaScript — probably a 404 page.`);
+  else if(text.startsWith("export const esm")) lines.push(`This is <code>dist/index.min.js</code>, which exports an encoded string. Use <code>dist/index.js</code>.`);
+  else if(text.length < 3e6) lines.push(`Only ${text.length.toLocaleString()} bytes arrived — truncated.`);
+  else lines.push(`File looks intact; see the console for the original error.`);
+  report(lines);
+}
+function report(lines){
+  statusBox.className="error";
+  statusBox.innerHTML = `<p>Could not load <code>niivue.js</code>.</p>`
+    + lines.map(l=>`<p style="margin-top:.9em">${l}</p>`).join("");
+}
+
+/* ---------- viewer ---------------------------------------------------- */
+const VIEWS = {
+  axial:["Axial",SLICE_TYPE.AXIAL], coronal:["Coronal",SLICE_TYPE.CORONAL],
+  sagittal:["Sagittal",SLICE_TYPE.SAGITTAL], multiplanar:["Grid",SLICE_TYPE.MULTIPLANAR],
+  render:["3D",SLICE_TYPE.RENDER],
+};
+
+const nv = new Niivue({
+  backColor:[0.04,0.05,0.055,1], crosshairColor:[0.94,0.71,0.16,1],
+  isColorbar:false, dragAndDropEnabled:false, show3Dcrosshair:true,
+});
+nv.attachTo("gl");
+
+const volumeList = [{url:CONFIG.volume.url, colormap:CONFIG.volume.colormap, opacity:1, visible:true}];
+const masksLoaded = [];
+try{
+  await nv.loadVolumes(volumeList);
+}catch(e){
+  fail(`Could not load <code>${CONFIG.volume.url}</code> (${e.message}).`);
+  throw e;
+}
+/* masks are optional: load each one separately so a missing file is survivable */
+for(const m of CONFIG.masks){
+  try{
+    await nv.addVolumeFromUrl({url:m.url, colormap:m.colormap, opacity:m.opacity,
+                               cal_min:CONFIG.maskCal.calMin, cal_max:CONFIG.maskCal.calMax});
+    masksLoaded.push(m);
+  }catch(e){ console.warn(`skipping mask ${m.url}:`, e.message); }
+}
+statusBox.remove();
+
+const vol = nv.volumes[0];
+const hdr = vol.hdr;
+const dims = [vol.dims[1], vol.dims[2], vol.dims[3]];   // RAS order
+const pix  = [vol.pixDims[1], vol.pixDims[2], vol.pixDims[3]];
+$("dims").textContent =
+  `${dims[0]}×${dims[1]}×${dims[2]}  ·  ${pix.map(p=>p.toFixed(2)).join("×")} mm`;
+
+/* ---------- intensity sampling in world space -------------------------- */
+const imgRAS = vol.img2RAS();
+const sclSlope = (hdr.scl_slope && hdr.scl_slope !== 0) ? hdr.scl_slope : 1;
+const sclInter = hdr.scl_inter || 0;
+
+/* Derive world->voxel as an affine from four probe calls, so the per-sample
+   cost is 9 multiplies instead of a matrix inversion. */
+const W2V = (() => {
+  const p = m => { const v = vol.mm2vox(m, true); return [v[0],v[1],v[2]]; };
+  const o = p([0,0,0]);
+  const col = c => sub(c, o);
+  return {o, x:col(p([1,0,0])), y:col(p([0,1,0])), z:col(p([0,0,1]))};
+})();
+const toVox = mm => [
+  W2V.o[0]+mm[0]*W2V.x[0]+mm[1]*W2V.y[0]+mm[2]*W2V.z[0],
+  W2V.o[1]+mm[0]*W2V.x[1]+mm[1]*W2V.y[1]+mm[2]*W2V.z[1],
+  W2V.o[2]+mm[0]*W2V.x[2]+mm[1]*W2V.y[2]+mm[2]*W2V.z[2]];
+
+const [NX,NY,NZ] = dims, NXY = NX*NY;
+function sampleMM(x,y,z){
+  const vx=W2V.o[0]+x*W2V.x[0]+y*W2V.y[0]+z*W2V.z[0];
+  const vy=W2V.o[1]+x*W2V.x[1]+y*W2V.y[1]+z*W2V.z[1];
+  const vz=W2V.o[2]+x*W2V.x[2]+y*W2V.y[2]+z*W2V.z[2];
+  if(vx<0||vy<0||vz<0||vx>NX-1||vy>NY-1||vz>NZ-1) return NaN;
+  const x0=vx|0, y0=vy|0, z0=vz|0;
+  const x1=x0+1<NX?x0+1:x0, y1=y0+1<NY?y0+1:y0, z1=z0+1<NZ?z0+1:z0;
+  const fx=vx-x0, fy=vy-y0, fz=vz-z0;
+  const b0=z0*NXY, b1=z1*NXY, r0=y0*NX, r1=y1*NX;
+  const c00=imgRAS[x0+r0+b0]*(1-fx)+imgRAS[x1+r0+b0]*fx;
+  const c10=imgRAS[x0+r1+b0]*(1-fx)+imgRAS[x1+r1+b0]*fx;
+  const c01=imgRAS[x0+r0+b1]*(1-fx)+imgRAS[x1+r0+b1]*fx;
+  const c11=imgRAS[x0+r1+b1]*(1-fx)+imgRAS[x1+r1+b1]*fx;
+  return ((c00*(1-fy)+c10*fy)*(1-fz)+(c01*(1-fy)+c11*fy)*fz)*sclSlope+sclInter;
+}
+
+/* ---------- needles ---------------------------------------------------- */
+let frameStatus = null;
+let needles = [], sel = -1, depth = 0, roll = 0, ringIdx = 2;
+let level = CONFIG.window.level, width = CONFIG.window.width;
+
+/* Ten visually distinct overlay colours; index = pen value. */
+const NEEDLE_CMAP = {
+  R:[0, 230,  80, 250, 120, 240,  90, 255, 165,  40, 255],
+  G:[0,  60, 190, 175, 125, 235, 205, 125,  95, 205, 255],
+  B:[0,  60, 255,  55, 255,  70, 205, 220,  45, 190, 255],
+  A:[0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
+  I:[0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10],
+};
+
+const AX = {x:0, y:1, z:2};
+/** Build a coordinate mapper from a spec like "-x -y +z", or "as given". */
+function parseTransform(spec){
+  const raw = String(spec).trim().toLowerCase();
+  if(raw === "as given" || raw === "" ) return p => p.slice();
+  const toks = raw.split(/\s+/);
+  if(toks.length !== 3) throw new Error(`transform needs 3 terms, got "${spec}"`);
+  const rows = toks.map(t => {
+    const m = /^([+-]?)([xyz])$/.exec(t);
+    if(!m) throw new Error(`bad term "${t}" in transform "${spec}"`);
+    return {s: m[1] === "-" ? -1 : 1, a: AX[m[2]]};
+  });
+  if(new Set(rows.map(r => r.a)).size !== 3) throw new Error(`transform "${spec}" repeats an axis`);
+  return p => rows.map(r => r.s * p[r.a]);
+}
+const AFF = vol.hdr.affine;                       // file-order voxel -> world mm
+const SP  = [vol.hdr.pixDims[1], vol.hdr.pixDims[2], vol.hdr.pixDims[3]];
+const fileVoxToMM = v => [
+  AFF[0][0]*v[0] + AFF[0][1]*v[1] + AFF[0][2]*v[2] + AFF[0][3],
+  AFF[1][0]*v[0] + AFF[1][1]*v[1] + AFF[1][2]*v[2] + AFF[1][3],
+  AFF[2][0]*v[0] + AFF[2][1]*v[1] + AFF[2][2]*v[2] + AFF[2][3]];
+
+/** Everything downstream works in world mm; this is the only place a frame
+ *  convention is interpreted. */
+function makeMapper(frame, spec){
+  const tx = parseTransform(spec);
+  /* Two index-mm variants, because the array's axis order and the spacing
+     vector's axis order need not agree. A loader that does out.transpose()
+     while spacing is still read from the header in file order puts the
+     divisor out of step with the index — "/src" divides by the spacing
+     permuted into the coordinates' own order. */
+  const div = frame === "index-mm/src" ? tx(SP).map(Math.abs) : SP;
+  return p => {
+    const a = tx([+p[0], +p[1], +p[2]]);
+    if(a.some(v => !Number.isFinite(v))) throw new Error(`bad coordinate ${JSON.stringify(p)}`);
+    if(frame === "index-mm" || frame === "index-mm/src")
+      return fileVoxToMM([a[0]/div[0], a[1]/div[1], a[2]/div[2]]);
+    if(frame === "voxel") return fileVoxToMM(a);
+    if(frame !== "world") throw new Error(`unknown needleFrame "${frame}"`);
+    return a;
+  };
+}
+
+const PERM_SPECS = (() => {
+  const out = ["as given"], ax = ["x","y","z"];
+  for(const p of [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]])
+    for(let m = 0; m < 8; m++){
+      const s = [m&1?-1:1, m&2?-1:1, m&4?-1:1];
+      const name = p.map((a,i) => (s[i]<0?"-":"+") + ax[a]).join(" ");
+      if(name !== "+x +y +z") out.push(name);
+    }
+  return out;
+})();
+
+/** Accepts {entry,target}, {world:[[...]]} or {voxel:[[...]]}. */
+function pointsOf(n, i, map){
+  if(n.entry && n.target) return [map(n.entry), map(n.target)];
+  if(Array.isArray(n.world)) return n.world.map(map);
+  if(Array.isArray(n.voxel)) return n.voxel.map(map);
+  throw new Error(`needle ${i+1}: expected entry/target, world or voxel`);
+}
+
+/** Endpoints in their original units, for the frame detector. */
+function rawPairs(list){
+  return list.map(n => {
+    if(n.entry && n.target) return {entry:n.entry, target:n.target};
+    const pts = n.world ?? n.voxel;
+    return {entry: pts[0], target: pts[pts.length-1]};
+  });
+}
+
+const insideVox = v => v[0]>=0 && v[1]>=0 && v[2]>=0 && v[0]<=NX-1 && v[1]<=NY-1 && v[2]<=NZ-1;
+
+/** Portion of the trajectory that actually lies inside the scanned volume.
+ *  These trajectories are fixed-length rays, so most of the line is in empty
+ *  space; everything downstream works from this range instead of 0..length. */
+function volumeSpan(path){
+  const step = Math.max(0.25, path.length/600);
+  let tIn = NaN, tOut = NaN;
+  for(let t=0; t<=path.length+1e-6; t+=step){
+    if(insideVox(toVox(path.pointAt(t)))){ if(Number.isNaN(tIn)) tIn=t; tOut=t; }
+  }
+  return Number.isNaN(tIn) ? null : {tIn, tOut};
+}
+
+const FRAME_MODELS = ["index-mm/src", "index-mm", "world", "voxel"];
+
+/** Sample a loaded mask volume at a world-mm point. Used to shortlist frames:
+ *  every target should land inside the target mask. */
+function maskSampler(){
+  const idx = CONFIG.masks.findIndex(m => m.label === CONFIG.targetMask);
+  if(idx < 0) return null;
+  const mv = nv.volumes[1 + masksLoaded.findIndex(m => m.label === CONFIG.targetMask)];
+  if(!mv || !mv.img) return null;
+  const d = [mv.dims[1], mv.dims[2], mv.dims[3]];
+  const img = mv.img2RAS();
+  return mm => {
+    const v = mv.mm2vox([mm[0], mm[1], mm[2]], true);
+    const x = Math.round(v[0]), y = Math.round(v[1]), z = Math.round(v[2]);
+    if(x < 0 || y < 0 || z < 0 || x >= d[0] || y >= d[1] || z >= d[2]) return 0;
+    return img[x + y*d[0] + z*d[0]*d[1]] > 0 ? 1 : 0;
+  };
+}
+
+/** Rank frames by: every target inside the volume, then inside the target
+ *  mask, then in soft tissue. This narrows the field — it does not decide.
+ *  The eye is a better judge than any of these, so the picker is live. */
+function shortlistFrames(raws){
+  const inMask = maskSampler();
+  const rows = [];
+  for(const frame of FRAME_MODELS)
+    for(const spec of PERM_SPECS){
+      let map;
+      try{ map = makeMapper(frame, spec); }catch{ continue; }
+      let tin = 0, hit = 0, tissue = 0;
+      for(const r of raws){
+        let b; try{ b = map(r.target); }catch{ tin = -1; break; }
+        if(!insideVox(toVox(b))) continue;
+        tin++;
+        if(inMask && inMask(b)) hit++;
+        const v = sampleMM(b[0], b[1], b[2]);
+        if(!Number.isNaN(v) && v > -150 && v < 300) tissue++;
+      }
+      if(tin < raws.length) continue;               // all targets must be in the scan
+      rows.push({frame, spec, mask: inMask ? hit/raws.length : null, tissue: tissue/raws.length});
+    }
+  rows.sort((a,b) => (b.mask ?? 0) - (a.mask ?? 0) || b.tissue - a.tissue);
+  return {rows, usedMask: !!inMask};
+}
+
+let rawList = [], activeFrame = CONFIG.needleFrame || "world";
+let activeSpec = CONFIG.needleTransform || "as given";
+
+/** (Re)build all needle geometry under a given frame. */
+function buildNeedles(frame, spec){
+  const map = makeMapper(frame, spec);
+  needles = rawList.map((n, i) => {
+    const path = makePath(pointsOf(n, i, map));
+    return {label: n.label ?? `Needle ${i+1}`, path, pen: (i%10)+1, visible: true,
+            span: volumeSpan(path)};
+  });
+  activeFrame = frame; activeSpec = spec;
+}
+
+try{
+  const res = await fetch(CONFIG.needles.url, {cache:"no-store"});
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.json();
+  const list = Array.isArray(raw) ? raw : raw.needles;
+  if(!Array.isArray(list)) throw new Error("expected an array, or {needles:[...]}");
+
+  rawList = list;
+  buildNeedles(activeFrame, activeSpec);
+
+  /* Narrow the field, then let the eye decide: the picker is live. */
+  const raws = rawPairs(list);
+  const {rows, usedMask} = shortlistFrames(raws);
+  frameStatus = {rows, usedMask};
+  buildFramePicker(rows, usedMask);
+
+  const outside = needles.filter(n => !n.span);
+  reportFrame();
+
+  if(outside.length === needles.length && needles.length){
+    $("warn").innerHTML = `<b>All ${needles.length} trajectories fall outside the `
+      + `image volume.</b> Run <code>diagnose.py</code> and copy the `
+      + `<code>needleFrame</code> and <code>needleTransform</code> it reports `
+      + `(currently <code>${activeFrame}</code> / <code>${activeSpec}</code>), or use the Coordinate frame picker above.`;
+  }else if(outside.length){
+    $("warn").textContent = `${outside.length} of ${needles.length} trajectories `
+      + `lie outside the volume: ${outside.map(n=>n.label).join(", ")}`;
+  }
+}catch(e){
+  console.warn("needles:", e);
+  $("warn").innerHTML = `No needles loaded (${e.message}).<br>`
+    + `Expected <code>${CONFIG.needles.url}</code> beside this page.`;
+}
+
+/** Current frame, plus how many targets land in the target mask. */
+function reportFrame(){
+  const el = $("frame");
+  if(!el) return;
+  let s = `frame: ${activeFrame}`;
+  if(activeSpec && activeSpec !== "as given") s += ` · axes ${activeSpec}`;
+  const inMask = maskSampler();
+  if(inMask && rawList.length){
+    const map = makeMapper(activeFrame, activeSpec);
+    let hit = 0;
+    for(const r of rawPairs(rawList)){
+      try{ if(inMask(map(r.target))) hit++; }catch{}
+    }
+    s += ` · ${hit}/${rawList.length} targets in ${CONFIG.targetMask}`;
+    el.style.color = hit === rawList.length ? "" : "#e5a05e";
+  }
+  el.textContent = s;
+}
+
+/** Live frame controls, with the plausible candidates listed first. */
+function buildFramePicker(rows, usedMask){
+  const mSel = $("fpModel"), aSel = $("fpAxes"), short = $("fpShort");
+  if(!mSel) return;
+  for(const f of FRAME_MODELS){
+    const o = document.createElement("option");
+    o.value = o.textContent = f;
+    if(f === activeFrame) o.selected = true;
+    mSel.append(o);
+  }
+  for(const spec of PERM_SPECS){
+    const o = document.createElement("option");
+    o.value = o.textContent = spec;
+    if(spec === activeSpec) o.selected = true;
+    aSel.append(o);
+  }
+  const apply = (frame, spec) => {
+    try{ buildNeedles(frame, spec); }
+    catch(e){ $("warn").textContent = e.message; return; }
+    mSel.value = frame; aSel.value = spec;
+    repaintNeedles();
+    rebuildNeedleList();
+    reportFrame();
+    const first = needles.findIndex(n => n.span);
+    selectNeedle(first >= 0 ? first : -1);
+  };
+  mSel.onchange = () => apply(mSel.value, aSel.value);
+  aSel.onchange = () => apply(mSel.value, aSel.value);
+
+  const good = rows.filter(r => usedMask ? r.mask === 1 : r.tissue === 1).slice(0, 6);
+  if(!good.length){
+    short.textContent = usedMask
+      ? "No frame puts every target inside the mask."
+      : "Set CONFIG.targetMask to a loaded mask to shortlist frames.";
+    return;
+  }
+  short.textContent = usedMask
+    ? `${good.length} frame${good.length>1?"s":""} put every target in ${CONFIG.targetMask}:`
+    : `${good.length} frames put every target in soft tissue:`;
+  for(const r of good){
+    const b = document.createElement("button");
+    b.textContent = `${r.frame} / ${r.spec}`;
+    b.onclick = () => apply(r.frame, r.spec);
+    short.append(b);
+  }
+  if(good.length > 1) $("framePick").open = true;
+}
+
+/* paint into NiiVue's drawing layer so needles appear in all three
+   projections and in the 3D render */
+let drawColors = needles.map(()=>"#f0b429");
+if(needles.length){
+  try{
+    nv.createEmptyDrawing();
+    nv.drawLut = cmapper.makeDrawLut(NEEDLE_CMAP);
+    nv.opts.penSize = Math.max(1, CONFIG.needleRadiusVox*2 - 1);
+    repaintNeedles();
+    nv.setDrawOpacity(0.9);
+    nv.setDrawingEnabled(false);            // display only, no painting by mouse
+    const lut = nv.drawLut?.lut;
+    if(lut) drawColors = needles.map(n => `rgb(${lut[n.pen*4]},${lut[n.pen*4+1]},${lut[n.pen*4+2]})`);
+  }catch(e){ console.warn("drawing layer unavailable:", e); }
+}
+
+function repaintNeedles(){
+  if(!nv.drawBitmap) return;
+  nv.drawBitmap.fill(0);
+  for(const n of needles){
+    if(!n.visible || !n.span) continue;
+    // draw only the in-volume part, else a 250 mm ray smears across the scene
+    const {tIn, tOut} = n.span;
+    const ts = [tIn];
+    for(const c of n.path.cum) if(c > tIn && c < tOut) ts.push(c);
+    ts.push(tOut);
+    const vx = ts.map(t => { const q = toVox(n.path.pointAt(t));
+                             return [Math.round(q[0]),Math.round(q[1]),Math.round(q[2])]; });
+    for(let i=1;i<vx.length;i++) nv.drawPenLine(vx[i-1], vx[i], n.pen);
+  }
+  nv.refreshDrawing(true);
+}
+
+/* ---------- oblique reformats ----------------------------------------- */
+const longC = $("longC"), longX = longC.getContext("2d", {alpha:false});
+const xsecC = $("xsecC"), xsecX = xsecC.getContext("2d", {alpha:false});
+const longImg = longX.createImageData(longC.width, longC.height);
+const xsecImg = xsecX.createImageData(xsecC.width, xsecC.height);
+
+function renderNeedleViews(){
+  const n = needles[sel];
+  if(!n){
+    for(const [c,x] of [[longC,longX],[xsecC,xsecX]]){ x.fillStyle="#000"; x.fillRect(0,0,c.width,c.height); }
+    $("needleName").textContent = "—";
+    $("longScale").textContent = $("xsecScale").textContent = "";
+    return;
+  }
+  const {path} = n;
+  const f = frame(path.chord);
+  const th = roll * Math.PI/180;
+  const u = add(mul(f.u, Math.cos(th)), mul(f.v, Math.sin(th)));   // in-plane vertical
+  const w = cross(path.chord, u);
+
+  /* ---- longitudinal: curved reformat, needle straightened to the mid row ---- */
+  {
+    const W=longC.width, H=longC.height;
+    const s0 = n.span ? n.span.tIn  : 0;
+    const s1 = n.span ? n.span.tOut : path.length;
+    const t0 = s0 - CONFIG.longFovMargin;
+    const mmPerPx = ((s1 - s0) + 2*CONFIG.longFovMargin) / W;
+    const lo = level - width/2, scale = 255/Math.max(width,1e-6);
+    const px = longImg.data;
+    for(let ix=0; ix<W; ix++){
+      const t = t0 + (ix+0.5)*mmPerPx;
+      const c = path.pointAt(t);
+      for(let py=0; py<H; py++){
+        const b = (py - H/2 + 0.5) * mmPerPx;
+        const val = sampleMM(c[0]+b*u[0], c[1]+b*u[1], c[2]+b*u[2]);
+        let g;
+        if(Number.isNaN(val)) g = 0;
+        else { g = (val - lo)*scale; g = g<0?0:g>255?255:g; }
+        const j=(py*W+ix)<<2; px[j]=px[j+1]=px[j+2]=g; px[j+3]=255;
+      }
+    }
+    longX.putImageData(longImg,0,0);
+
+    const xOf = t => (t - t0)/mmPerPx;
+    const mid = H/2;
+    longX.save();
+    longX.strokeStyle = drawColors[sel] || "#f0b429";
+    longX.lineWidth = 2; longX.globalAlpha = .85;
+    longX.beginPath(); longX.moveTo(xOf(s0), mid); longX.lineTo(xOf(Math.min(s1, path.length)), mid); longX.stroke();
+    longX.globalAlpha = 1;
+    for(const [t,lab,side] of [[s0,"skin",1],[path.length,"target",-1]]){
+      if(t < t0 || t > t0 + W*mmPerPx) continue;
+      longX.beginPath(); longX.moveTo(xOf(t), mid-9); longX.lineTo(xOf(t), mid+9); longX.stroke();
+      longX.fillStyle = "#c6ced6"; longX.font = "16px ui-monospace, monospace";
+      longX.textAlign = side>0 ? "left" : "right";
+      longX.fillText(lab, xOf(t) + side*4, mid+26);
+    }
+    longX.strokeStyle = "#f0b429"; longX.lineWidth = 1.5;
+    longX.beginPath(); longX.moveTo(xOf(depth), 0); longX.lineTo(xOf(depth), H); longX.stroke();
+    longX.restore();
+    $("longScale").textContent = `${mmPerPx.toFixed(2)} mm/px`;
+    $("longNote").textContent = path.pts.length > 2 ? "straightened reformat" : "true oblique plane";
+  }
+
+  /* ---- probe's eye: plane perpendicular to the local tangent ---- */
+  {
+    const W=xsecC.width, H=xsecC.height;
+    const mmPerPx = CONFIG.xsecFov / W;
+    const c = path.pointAt(depth);
+    const d = path.tangentAt(depth);
+    // rebuild an in-plane basis from the *local* tangent, keeping roll consistent
+    const lf = frame(d);
+    const e1 = add(mul(lf.u, Math.cos(th)), mul(lf.v, Math.sin(th)));
+    const e2 = cross(d, e1);
+    const lo = level - width/2, scale = 255/Math.max(width,1e-6);
+    const px = xsecImg.data;
+    for(let py=0; py<H; py++){
+      const b=(py-H/2+0.5)*mmPerPx;
+      for(let ix=0; ix<W; ix++){
+        const a=(ix-W/2+0.5)*mmPerPx;
+        const val = sampleMM(c[0]+a*e1[0]+b*e2[0], c[1]+a*e1[1]+b*e2[1], c[2]+a*e1[2]+b*e2[2]);
+        let g;
+        if(Number.isNaN(val)) g=0;
+        else { g=(val-lo)*scale; g=g<0?0:g>255?255:g; }
+        const j=(py*W+ix)<<2; px[j]=px[j+1]=px[j+2]=g; px[j+3]=255;
+      }
+    }
+    xsecX.putImageData(xsecImg,0,0);
+
+    const cx=W/2, cy=H/2, pxPerMm=1/mmPerPx;
+    xsecX.save();
+    xsecX.strokeStyle="#f0b429"; xsecX.globalAlpha=.55; xsecX.lineWidth=1;
+    xsecX.setLineDash([5,5]);
+    for(const r of RING_STEPS[ringIdx]){
+      if(r<=0) continue;
+      xsecX.beginPath(); xsecX.arc(cx,cy,r*pxPerMm,0,7); xsecX.stroke();
+      xsecX.setLineDash([]);
+      xsecX.fillStyle="#f0b429"; xsecX.font="15px ui-monospace, monospace";
+      xsecX.textAlign="center"; xsecX.fillText(`${r}`, cx, cy - r*pxPerMm - 5);
+      xsecX.setLineDash([5,5]);
+    }
+    xsecX.setLineDash([]); xsecX.globalAlpha=1;
+    xsecX.strokeStyle=drawColors[sel]||"#f0b429"; xsecX.lineWidth=2;
+    xsecX.beginPath(); xsecX.arc(cx,cy,4,0,7); xsecX.stroke();
+    xsecX.beginPath();
+    xsecX.moveTo(cx-14,cy); xsecX.lineTo(cx-7,cy); xsecX.moveTo(cx+7,cy); xsecX.lineTo(cx+14,cy);
+    xsecX.moveTo(cx,cy-14); xsecX.lineTo(cx,cy-7); xsecX.moveTo(cx,cy+7); xsecX.lineTo(cx,cy+14);
+    xsecX.stroke();
+    xsecX.restore();
+    $("xsecScale").textContent = `${CONFIG.xsecFov} mm across`;
+    $("xsecNote").textContent = `${(path.length-depth).toFixed(1)} mm to target`;
+  }
+
+  $("needleName").textContent = n.label;
+}
+
+let pending = 0;
+const scheduleRender = () => {
+  if(pending) return;
+  pending = requestAnimationFrame(() => { pending = 0; renderNeedleViews(); });
+};
+
+/* ---------- window / level ------------------------------------------- */
+function applyWindow(){
+  vol.cal_min = level - width/2;
+  vol.cal_max = level + width/2;
+  nv.updateGLVolume();
+  $("levelV").textContent = `${Math.round(level)} HU`;
+  $("widthV").textContent = `${Math.round(width)} HU`;
+  $("level").value = level; $("width").value = width;
+  scheduleRender();
+}
+
+/* ---------- needle selection ------------------------------------------ */
+let followDepth = true;
+
+function selectNeedle(i){
+  sel = i;
+  const n = (i >= 0) ? needles[i] : null;
+  [...$("needleList").querySelectorAll(".pick")]
+    .forEach((b,k) => b.setAttribute("aria-pressed", k === i));
+  const slider = $("depth");
+  if(n){
+    slider.disabled = false; $("roll").disabled = false;
+    // scrub only the part of the ray inside the scan, and start at the target
+    const lo = n.span ? n.span.tIn : 0;
+    const hi = n.span ? Math.max(n.span.tOut, n.path.length) : n.path.length;
+    slider.min = lo.toFixed(1);
+    slider.max = hi.toFixed(1);
+    updateDepth(Math.min(n.path.length, hi));
+  }else{
+    slider.disabled = true; $("roll").disabled = true;
+    scheduleRender();
+  }
+}
+
+function updateDepth(t){
+  depth = t;
+  const n = needles[sel];
+  if(!n) return;
+  $("depth").value = t;
+  const toTarget = n.path.length - t;
+  $("depthV").textContent = Math.abs(toTarget) < 0.05
+    ? "at target"
+    : `${toTarget > 0 ? toTarget.toFixed(1) + " mm short" : (-toTarget).toFixed(1) + " mm past"}`;
+  if(followDepth){
+    const mm = n.path.pointAt(t);
+    try{
+      nv.scene.crosshairPos = nv.mm2frac(mm);
+      nv.drawScene();
+      nv.createOnLocationChange?.();
+    }catch(e){ /* crosshair sync is a convenience, never fatal */ }
+  }
+  scheduleRender();
+}
+
+/* ---------- build the UI ---------------------------------------------- */
+{
+  const box = $("views");
+  for(const [key,[label,type]] of Object.entries(VIEWS)){
+    const b=document.createElement("button");
+    b.textContent=label;
+    b.onclick=()=>{ nv.setSliceType(type); [...box.children].forEach(c=>c.setAttribute("aria-pressed", c===b)); };
+    box.append(b);
+    if(key===CONFIG.startView) b.click();
+  }
+}
+{
+  const box=$("presets");
+  for(const [name,[l,w]] of Object.entries(PRESETS)){
+    const b=document.createElement("button");
+    b.textContent=name;
+    b.onclick=()=>{ level=l; width=w; applyWindow(); markPreset(); };
+    box.append(b);
+  }
+  const markPreset=()=>{
+    [...box.children].forEach(b=>{
+      const [l,w]=PRESETS[b.textContent];
+      b.setAttribute("aria-pressed", Math.round(l)===Math.round(level) && Math.round(w)===Math.round(width));
+    });
+  };
+  $("level").oninput=e=>{ level=+e.target.value; applyWindow(); markPreset(); };
+  $("width").oninput=e=>{ width=+e.target.value; applyWindow(); markPreset(); };
+  applyWindow(); markPreset();
+}
+function rebuildNeedleList(){
+  const list=$("needleList");
+  list.innerHTML="";
+  if(!needles.length){ list.innerHTML=`<div class="num">none loaded</div>`; return; }
+  needles.forEach((n,i)=>{
+    const row=document.createElement("div");
+    row.className="row";
+    const pick=document.createElement("button");
+    pick.className="pick"; pick.setAttribute("aria-pressed","false");
+    pick.innerHTML=`<span class="swatch" style="display:inline-block;background:${drawColors[i]};margin-right:7px"></span>${n.label}`;
+    pick.onclick=()=>selectNeedle(i);
+    const num=document.createElement("span");
+    num.className="num";
+    num.textContent = n.span ? `${(n.span.tOut-n.span.tIn).toFixed(0)} mm in scan` : "outside";
+    if(!n.span) num.style.color="#e5a05e";
+    const vis=document.createElement("button");
+    vis.className="toggle"; vis.setAttribute("aria-pressed", n.visible);
+    vis.setAttribute("aria-label",`Show ${n.label} in projections`);
+    vis.onclick=()=>{ n.visible=!n.visible; vis.setAttribute("aria-pressed",n.visible); repaintNeedles(); };
+    row.append(vis,pick,num);
+    list.append(row);
+  });
+}
+rebuildNeedleList();
+$("drawOp").oninput=e=>{
+  nv.setDrawOpacity(+e.target.value);
+  $("drawV").textContent=Math.round(e.target.value*100)+"%";
+};
+
+{
+  const g=$("maskGroup");
+  if(masksLoaded.length){
+    g.hidden=false;
+    masksLoaded.forEach((m,i)=>{
+      const idx=i+1;
+      const row=document.createElement("div"); row.className="row";
+      row.innerHTML=`<button class="toggle" aria-pressed="true" aria-label="Show ${m.label}"></button>
+                     <span class="name">${m.label}</span><span class="num">${Math.round(m.opacity*100)}%</span>`;
+      const slider=document.createElement("input");
+      Object.assign(slider,{type:"range",min:0,max:1,step:.05,value:m.opacity});
+      slider.setAttribute("aria-label",`${m.label} opacity`);
+      const num=row.querySelector(".num"), tog=row.querySelector(".toggle");
+      let last=m.opacity;
+      const apply=v=>{ nv.setOpacity(idx,v); slider.value=v; num.textContent=Math.round(v*100)+"%";
+                       tog.setAttribute("aria-pressed",v>0); if(v>0) last=v; };
+      slider.oninput=()=>apply(+slider.value);
+      tog.onclick=()=>apply(tog.getAttribute("aria-pressed")==="true"?0:(last||.4));
+      g.append(row,slider);
+    });
+  }
+}
+
+$("clip").oninput = e => {
+  const f = +e.target.value / 100;
+  if(f >= 1){ nv.setClipPlane([2, 0, 0]); $("clipV").textContent = "off"; }   // 2 disables
+  else{ nv.setClipPlane([f - 0.5, 270, 0]); $("clipV").textContent = `${Math.round(f*100)}%`; }
+};
+
+$("depth").oninput = e => updateDepth(+e.target.value);
+$("roll").oninput  = e => { roll=+e.target.value; $("rollV").textContent=`${roll}°`; scheduleRender(); };
+$("rings").oninput = e => {
+  ringIdx=+e.target.value;
+  const r=RING_STEPS[ringIdx];
+  $("ringsV").textContent = r[0]===0 ? "off" : r.join(" / ")+" mm";
+  scheduleRender();
+};
+$("followT").onclick = e => {
+  followDepth = e.currentTarget.getAttribute("aria-pressed") !== "true";
+  e.currentTarget.setAttribute("aria-pressed", followDepth);
+};
+
+/* ---------- crosshair readout ------------------------------------------ */
+nv.onLocationChange = d => {
+  const el=$("loc");
+  if(Array.isArray(d?.values) && d.values.length){
+    const mm = Array.isArray(d.mm) ? [...d.mm].slice(0,3).map(v=>(+v).toFixed(1)).join(", ") : "";
+    const names = ["CT", ...masksLoaded.map(m=>m.label)];
+    const vals = d.values.map((v,i)=>`${names[i] ?? `layer ${i}`} <b>${(+v.value).toFixed(1)}</b>`).join("<br>");
+    el.innerHTML = (mm?`mm ${mm}<br>`:"") + vals;
+  }else el.textContent = d?.string ?? "";
+};
+
+/* ---------- keyboard ---------------------------------------------------- */
+addEventListener("keydown", e=>{
+  if(["INPUT","SELECT","BUTTON"].includes(e.target.tagName)) return;
+  const n=needles[sel];
+  if(n){
+    const big=e.shiftKey?5:1;
+    const lo = n.span ? n.span.tIn : 0;
+    const hi = n.span ? Math.max(n.span.tOut, n.path.length) : n.path.length;
+    if(e.key==="ArrowRight"||e.key==="l"){ updateDepth(Math.min(hi, depth+big)); return e.preventDefault(); }
+    if(e.key==="ArrowLeft" ||e.key==="h"){ updateDepth(Math.max(lo, depth-big)); return e.preventDefault(); }
+    if(e.key==="Home"){ updateDepth(lo); return e.preventDefault(); }
+    if(e.key==="End"){ updateDepth(n.path.length); return e.preventDefault(); }
+  }
+  if(e.key>="1" && e.key<="9"){
+    const i=+e.key-1;
+    if(needles[i]){ selectNeedle(i); e.preventDefault(); }
+  }
+});
+
+/* ---------- go ---------------------------------------------------------- */
+const firstInside = needles.findIndex(n => n.span);
+if(firstInside >= 0) selectNeedle(firstInside);
+else renderNeedleViews();
+
+</script>
+</body>
+</html>
