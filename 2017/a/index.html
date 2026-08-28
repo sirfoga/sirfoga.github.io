@@ -26,10 +26,7 @@
   header .meta{font:11px/1 var(--mono);color:var(--dim);letter-spacing:.04em}
 
   main{display:grid;grid-template-columns:1fr 400px;min-height:0}
-  @media (max-width:1000px){
-    main{grid-template-columns:1fr;grid-template-rows:1fr auto}
-    #needlePanel{border-left:0;border-top:1px solid var(--line);max-height:46vh}
-  }
+  @media (max-width:1200px){main{grid-template-columns:1fr 340px}}
 
   #stage{position:relative;min-height:0;background:#000}
   #gl{display:block;width:100%;height:100%;touch-action:none}
@@ -51,7 +48,7 @@
   .ph em{font-style:normal;color:var(--ink);text-transform:none;letter-spacing:.03em;font-size:11px}
 
   .viewbox{border:1px solid var(--line);background:#000;position:relative;line-height:0}
-  .viewbox canvas{width:100%;height:auto;display:block}
+  .viewbox canvas{width:100%;max-width:100%;height:auto;display:block}
   .viewbox figcaption{
     position:absolute;left:6px;top:5px;font:10px/1.4 var(--mono);color:#8d99a5;
     letter-spacing:.06em;text-shadow:0 0 5px #000;pointer-events:none;
@@ -78,7 +75,8 @@
 
   .row{display:flex;align-items:center;gap:9px;margin-bottom:7px}
   .row:last-child{margin-bottom:0}
-  .swatch{width:9px;height:9px;flex:0 0 auto;border-radius:50%;box-shadow:0 0 0 1px #0006}
+  /* dark ring so a pale swatch still reads on the amber selected row */
+  .swatch{width:9px;height:9px;flex:0 0 auto;border-radius:50%;box-shadow:0 0 0 1.5px #000a}
   .name{font-size:12px;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .num{font:10px/1 var(--mono);color:var(--dim);flex:0 0 auto}
 
@@ -113,7 +111,10 @@
   .toggle[aria-pressed=true]{border-color:var(--accent)}
   .toggle[aria-pressed=true]::after{left:auto;right:2px;background:var(--accent)}
 
-  #needleList{max-height:132px;overflow-y:auto;padding-right:4px}
+  #needleList{max-height:260px;overflow-y:auto;padding-right:4px}
+  .setrow{margin-top:12px}
+  .setrow:first-child{margin-top:0}
+  .setname{font:10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
   #frame{font:10px/1.4 var(--mono);color:var(--dim);letter-spacing:.05em;margin-top:-6px}
   #framePick{border:1px solid var(--line);padding:7px 9px}
   #framePick summary{font:10px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;
@@ -128,10 +129,57 @@
   #warn{font:11px/1.6 var(--mono);color:#e5a05e;letter-spacing:.03em}
   #loc{font:11px/1.6 var(--mono);color:var(--dim);letter-spacing:.03em;min-height:2.2em;word-break:break-word}
   #loc b{color:var(--accent);font-weight:500}
+
+  /* ---- tab bar (portrait / narrow only) ------------------------------ */
+  #tabs{display:none;gap:0;background:var(--panel);border-top:1px solid var(--line);
+        border-bottom:1px solid var(--line)}
+  #tabs button{flex:1 1 0;border:0;border-bottom:2px solid transparent;padding:12px 4px;
+               background:transparent;letter-spacing:.08em}
+  #tabs button[aria-pressed=true]{background:transparent;color:var(--accent);
+               border-bottom-color:var(--accent)}
+
+  /* ---- portrait / narrow screens ------------------------------------- *
+     main and footer collapse away so #stage, #needlePanel and #controls
+     become rows of the body grid; only one of the two panels is shown at a
+     time, chosen by the tab bar (body[data-pane]).                       */
+  @media (max-width:820px){
+    html,body{height:100dvh}
+    /* one column, and min-width:0 everywhere so the 760px-wide reformat
+       canvases cannot push the page wider than the phone */
+    body{grid-template-columns:minmax(0,1fr);
+         grid-template-rows:auto minmax(190px,38svh) auto minmax(0,1fr)}
+    body > *,#stage,#tabs,#needlePanel,#controls{min-width:0}
+    main,footer{display:contents}
+    header{padding:8px 12px;flex-wrap:nowrap;overflow:hidden}
+    header .meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #stage{grid-row:2}
+    #tabs{grid-row:3;display:flex}
+    #needlePanel,#controls{grid-row:4;min-height:0;overflow-y:auto;max-height:none;
+                           border-left:0;border-top:0}
+    body[data-pane=traj] #controls{display:none}
+    body:not([data-pane=traj]) #needlePanel{display:none}
+    body[data-pane=image]   .group:not([data-pane=image])  {display:none}
+    body[data-pane=needles] .group:not([data-pane=needles]){display:none}
+    #controls{display:block;padding:14px 14px 28px}
+    .group{margin-bottom:22px}
+    .group:last-child{margin-bottom:0}
+    #needleList{max-height:none}
+    #xsecWrap{max-width:320px}
+    /* fingers, not mice */
+    button{padding:11px 12px}
+    .pick{padding:11px 11px;font-size:13px}
+    .toggle{width:34px;height:20px}
+    .toggle::after{width:12px;height:12px;top:3px;left:3px}
+    .toggle[aria-pressed=true]::after{right:3px}
+    input[type=range]{height:34px;touch-action:pan-y}
+    input[type=range]::-webkit-slider-thumb{width:6px;height:26px;margin-top:-12px}
+    input[type=range]::-moz-range-thumb{width:6px;height:26px}
+    .row{margin-bottom:10px}
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
-<body>
+<body data-pane="traj">
 
 <header>
   <h1>Liver ablation viewer</h1>
@@ -146,8 +194,8 @@
 
   <aside id="needlePanel">
     <div class="ph"><span>Needle view</span><em id="needleName">—</em></div>
-    <div id="frame"></div>
-    <details id="framePick">
+    <div id="frame" hidden></div>
+    <details id="framePick" hidden>
       <summary>Coordinate frame</summary>
       <div class="fp">
         <select id="fpModel" aria-label="Frame model"></select>
@@ -183,8 +231,14 @@
   </aside>
 </main>
 
-<footer>
-  <div class="group">
+<nav id="tabs" aria-label="Panels">
+  <button data-pane="traj"    aria-pressed="true">Trajectory</button>
+  <button data-pane="needles" aria-pressed="false">Needles</button>
+  <button data-pane="image"   aria-pressed="false">Image</button>
+</nav>
+
+<footer id="controls">
+  <div class="group" data-pane="image">
     <h2>Projection</h2>
     <div class="buttons" id="views"></div>
     <div class="row" style="margin-top:9px">
@@ -195,7 +249,7 @@
     <input type="range" id="clip" min="0" max="100" step="1" value="100" aria-label="3D clip plane depth">
   </div>
 
-  <div class="group">
+  <div class="group" data-pane="image">
     <h2>Window</h2>
     <div class="buttons" id="presets"></div>
     <div class="lbl">Level <span id="levelV">—</span></div>
@@ -204,18 +258,18 @@
     <input type="range" id="width" min="1" max="2000" step="1" value="150" aria-label="Window width">
   </div>
 
-  <div class="group">
+  <div class="group" data-pane="needles">
     <h2>Needles</h2>
     <div id="needleList"></div>
-    <div class="lbl">Overlay opacity <span id="drawV">90%</span></div>
-    <input type="range" id="drawOp" min="0" max="1" step="0.05" value="0.9" aria-label="Needle overlay opacity">
+    <div class="lbl">Needle opacity <span id="drawV">90%</span></div>
+    <input type="range" id="drawOp" min="0.1" max="1" step="0.05" value="0.9" aria-label="Needle opacity">
   </div>
 
-  <div class="group" id="maskGroup" hidden>
+  <div class="group" id="maskGroup" data-pane="needles" hidden>
     <h2>Masks</h2>
   </div>
 
-  <div class="group">
+  <div class="group" data-pane="image">
     <h2>Cursor</h2>
     <div id="loc">click the image to place the crosshair</div>
   </div>
@@ -228,7 +282,16 @@
  * ==================================================================== */
 const CONFIG = {
   volume:  {url: "ct.nii.gz", colormap: "gray"},
-  needles: {url: "needles.json"},
+
+  // One entry per needle file. Each set gets its own colour family (see
+  // RAMPS below) and its own show/hide toggle, so two plans can be laid over
+  // the same scan and told apart. Add a second line to compare:
+  // Ramps: cyan | magenta | lime | amber. The defaults avoid the amber
+  // crosshair and the red tumour overlay, and are far apart from each other.
+  needleSets: [
+    {url: "needles.json", label: "Plan A", ramp: "cyan"},
+    {url: "needles-b.json", label: "Plan B", ramp: "magenta"},
+  ],
 
   // What the needle coordinates mean. Paste both values from diagnose.py.
   //   "index-mm"      mm from the array corner: voxel = value / spacing
@@ -242,6 +305,9 @@ const CONFIG = {
   // Mask the targets should land in. Used only to shortlist frames in the
   // picker — set it to one of the mask labels below, or "" to disable.
   targetMask: "Tumour",
+  // The frame picker is a setup tool, not a clinical control: leave it off
+  // once needleFrame/needleTransform above are known to be right.
+  showFramePicker: false,
 
   // Optional segmentations. Delete entries you don't have.
   masks: [
@@ -252,7 +318,16 @@ const CONFIG = {
 
   startView: "multiplanar",       // axial | coronal | sagittal | multiplanar | render
   window:    {level: 60, width: 150},   // liver CT, in HU
-  needleRadiusVox: 2,             // thickness of the needle drawn into the 3 projections
+
+  // Needles are surface meshes, so they draw as smooth lines in the three
+  // projections and as real tubes in the 3D render — no voxel staircase.
+  needle: {
+    radiusMM:  0.8,               // tube radius (a 17G applicator is ~0.7 mm)
+    targetMM:  3.0,               // sphere drawn at the target point
+    sides:     10,                // tube facets
+    xray:      0.45,              // ghost strength where the volume hides them
+  },
+
   longFovMargin: 20,              // mm of context beyond the in-volume trajectory
   xsecFov: 70,                    // mm across the probe's-eye view
 };
@@ -303,9 +378,9 @@ function frame(d){
 }
 
 /* ---------- load the vendored bundle ---------------------------------- */
-let Niivue, SLICE_TYPE, cmapper;
+let Niivue, SLICE_TYPE, NVMesh;
 try{
-  ({Niivue, SLICE_TYPE, cmapper} = await import("./niivue.js"));
+  ({Niivue, SLICE_TYPE, NVMesh} = await import("./niivue.js"));
   if(typeof Niivue !== "function")
     throw new TypeError(`niivue.js exports no Niivue constructor (got ${typeof Niivue}). `
       + `Wrong build: use dist/index.js, not dist/index.min.js.`);
@@ -417,14 +492,17 @@ let frameStatus = null;
 let needles = [], sel = -1, depth = 0, roll = 0, ringIdx = 2;
 let level = CONFIG.window.level, width = CONFIG.window.width;
 
-/* Ten visually distinct overlay colours; index = pen value. */
-const NEEDLE_CMAP = {
-  R:[0, 230,  80, 250, 120, 240,  90, 255, 165,  40, 255],
-  G:[0,  60, 190, 175, 125, 235, 205, 125,  95, 205, 255],
-  B:[0,  60, 255,  55, 255,  70, 205, 220,  45, 190, 255],
-  A:[0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
-  I:[0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10],
+/* One colour family per needle set: the sets stay separable at a glance,
+   and the needles within a set fan out along the family's ramp. */
+const RAMPS = {
+  amber:   [[255,222,120], [214, 62, 38]],
+  cyan:    [[150,236,255], [ 58, 96,255]],
+  lime:    [[214,247,140], [ 30,150, 82]],
+  magenta: [[255,190,238], [186, 34,150]],
 };
+const rampColor = (ramp, i, n) =>
+  ramp[0].map((a, k) => Math.round(a + (ramp[1][k] - a) * (n > 1 ? i/(n-1) : 0)));
+const cssOf = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
 const AX = {x:0, y:1, z:2};
 /** Build a coordinate mapper from a spec like "-x -y +z", or "as given". */
@@ -566,53 +644,72 @@ function shortlistFrames(raws){
   return {rows, usedMask: !!inMask};
 }
 
-let rawList = [], activeFrame = CONFIG.needleFrame || "world";
+let sets = [], activeFrame = CONFIG.needleFrame || "world";
+/** Endpoint pairs of every set at once, for the frame detector. */
+const allRawPairs = () => sets.flatMap(set => rawPairs(set.raw));
 let activeSpec = CONFIG.needleTransform || "as given";
 
 /** (Re)build all needle geometry under a given frame. */
 function buildNeedles(frame, spec){
   const map = makeMapper(frame, spec);
-  needles = rawList.map((n, i) => {
+  needles = [];
+  sets.forEach((set, si) => set.raw.forEach((n, i) => {
+    const rgb = rampColor(set.ramp, i, set.raw.length);
     const path = makePath(pointsOf(n, i, map));
-    return {label: n.label ?? `Needle ${i+1}`, path, pen: (i%10)+1, visible: true,
-            span: volumeSpan(path)};
-  });
+    needles.push({label: n.label ?? `Needle ${i+1}`, set: si, rgb, css: cssOf(rgb),
+                  path, span: volumeSpan(path), visible: true, mesh: null});
+  }));
   activeFrame = frame; activeSpec = spec;
 }
 
-try{
-  const res = await fetch(CONFIG.needles.url, {cache:"no-store"});
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
-  const raw = await res.json();
-  const list = Array.isArray(raw) ? raw : raw.needles;
-  if(!Array.isArray(list)) throw new Error("expected an array, or {needles:[...]}");
+/* Sets load independently, so a second plan that is not there yet — or a
+   typo in its filename — never costs you the first one. */
+const setErrors = [];
+for(const src of CONFIG.needleSets){
+  try{
+    const res = await fetch(src.url, {cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+    const list = Array.isArray(raw) ? raw : raw.needles;
+    if(!Array.isArray(list)) throw new Error("expected an array, or {needles:[...]}");
+    sets.push({label: src.label ?? src.url, url: src.url,
+               ramp: RAMPS[src.ramp] ?? RAMPS.amber, raw: list});
+  }catch(e){
+    console.warn(`needle set ${src.url}:`, e);
+    setErrors.push(`${src.label ?? src.url} (${e.message})`);
+  }
+}
 
-  rawList = list;
-  buildNeedles(activeFrame, activeSpec);
+buildNeedles(activeFrame, activeSpec);
+reportFrame();
 
+{
   const outside = needles.filter(n => !n.span);
-  reportFrame();
-
-  if(outside.length === needles.length && needles.length){
-    $("warn").innerHTML = `<b>All ${needles.length} trajectories fall outside the `
+  const notes = [];
+  if(!sets.length){
+    notes.push(`<b>No needles loaded.</b> Expected `
+      + CONFIG.needleSets.map(c => `<code>${c.url}</code>`).join(" or ")
+      + ` beside this page.`);
+  }else if(outside.length === needles.length){
+    notes.push(`<b>All ${needles.length} trajectories fall outside the `
       + `image volume.</b> Run <code>diagnose.py</code> and copy the `
       + `<code>needleFrame</code> and <code>needleTransform</code> it reports `
-      + `(currently <code>${activeFrame}</code> / <code>${activeSpec}</code>), or use the Coordinate frame picker above.`;
+      + `(currently <code>${activeFrame}</code> / <code>${activeSpec}</code>).`);
   }else if(outside.length){
-    $("warn").textContent = `${outside.length} of ${needles.length} trajectories `
-      + `lie outside the volume: ${outside.map(n=>n.label).join(", ")}`;
+    notes.push(`${outside.length} of ${needles.length} trajectories lie outside `
+      + `the volume: ${outside.map(n => n.label).join(", ")}`);
   }
-}catch(e){
-  console.warn("needles:", e);
-  $("warn").innerHTML = `No needles loaded (${e.message}).<br>`
-    + `Expected <code>${CONFIG.needles.url}</code> beside this page.`;
+  if(sets.length && setErrors.length)
+    notes.push(`Could not load ${setErrors.join(", ")}.`);
+  $("warn").innerHTML = notes.join("<br>");
 }
 
 /* The frame picker is a convenience; a failure here must never be reported as
    a needle-loading failure, and must never stop the needles from displaying. */
-if(needles.length){
+if(needles.length && CONFIG.showFramePicker){
   try{
-    const {rows, usedMask} = shortlistFrames(rawPairs(rawList));
+    $("framePick").hidden = false;
+    const {rows, usedMask} = shortlistFrames(allRawPairs());
     frameStatus = {rows, usedMask};
     buildFramePicker(rows, usedMask);
   }catch(e){
@@ -625,18 +722,20 @@ if(needles.length){
 /** Current frame, plus how many targets land in the target mask. */
 function reportFrame(){
   const el = $("frame");
-  if(!el) return;
+  if(!el || !CONFIG.showFramePicker) return;
+  el.hidden = false;
   let s = `frame: ${activeFrame}`;
   if(activeSpec && activeSpec !== "as given") s += ` · axes ${activeSpec}`;
   const inMask = maskSampler();
-  if(inMask && rawList.length){
+  const raws = allRawPairs();
+  if(inMask && raws.length){
     const map = makeMapper(activeFrame, activeSpec);
     let hit = 0;
-    for(const r of rawPairs(rawList)){
+    for(const r of raws){
       try{ if(inMask(map(r.target))) hit++; }catch{}
     }
-    s += ` · ${hit}/${rawList.length} targets in ${CONFIG.targetMask}`;
-    el.style.color = hit === rawList.length ? "" : "#e5a05e";
+    s += ` · ${hit}/${raws.length} targets in ${CONFIG.targetMask}`;
+    el.style.color = hit === raws.length ? "" : "#e5a05e";
   }
   el.textContent = s;
 }
@@ -661,7 +760,7 @@ function buildFramePicker(rows, usedMask){
     try{ buildNeedles(frame, spec); }
     catch(e){ $("warn").textContent = e.message; return; }
     mSel.value = frame; aSel.value = spec;
-    repaintNeedles();
+    rebuildNeedleMeshes();
     rebuildNeedleList();
     reportFrame();
     const first = needles.findIndex(n => n.span);
@@ -689,37 +788,87 @@ function buildFramePicker(rows, usedMask){
   if(good.length > 1) $("framePick").open = true;
 }
 
-/* paint into NiiVue's drawing layer so needles appear in all three
-   projections and in the 3D render */
-let drawColors = needles.map(()=>"#f0b429");
-if(needles.length){
-  try{
-    nv.createEmptyDrawing();
-    nv.drawLut = cmapper.makeDrawLut(NEEDLE_CMAP);
-    nv.opts.penSize = Math.max(1, CONFIG.needleRadiusVox*2 - 1);
-    repaintNeedles();
-    nv.setDrawOpacity(0.9);
-    nv.setDrawingEnabled(false);            // display only, no painting by mouse
-    const lut = nv.drawLut?.lut;
-    if(lut) drawColors = needles.map(n => `rgb(${lut[n.pen*4]},${lut[n.pen*4+1]},${lut[n.pen*4+2]})`);
-  }catch(e){ console.warn("drawing layer unavailable:", e); }
+/* ---------- needle geometry ------------------------------------------ *
+ *  Needles are surface meshes in world mm: NiiVue draws them as smooth
+ *  tubes in the 3D render and cross-sects them onto the three projections,
+ *  so nothing is quantised to the voxel grid. Both builders append into
+ *  shared position/index arrays.                                          */
+function addTube(P, I, pts, r, sides){
+  if(pts.length < 2) return;
+  const base = P.length/3;
+  let carried = frame(sub(pts[1], pts[0])).u;       // any vector off the axis
+  for(let k = 0; k < pts.length; k++){
+    const d = norm(sub(pts[Math.min(k+1, pts.length-1)], pts[Math.max(k-1, 0)]));
+    const u = norm(sub(carried, mul(d, dot(carried, d))));   // parallel transport
+    const v = cross(d, u);
+    carried = u;
+    for(let sIdx = 0; sIdx < sides; sIdx++){
+      const a = 2*Math.PI*sIdx/sides;
+      const o = add(mul(u, r*Math.cos(a)), mul(v, r*Math.sin(a)));
+      P.push(pts[k][0]+o[0], pts[k][1]+o[1], pts[k][2]+o[2]);
+    }
+  }
+  for(let k = 0; k < pts.length-1; k++)
+    for(let sIdx = 0; sIdx < sides; sIdx++){
+      const a0 = base + k*sides + sIdx, a1 = base + k*sides + (sIdx+1)%sides;
+      I.push(a0, a0+sides, a1,  a1, a0+sides, a1+sides);
+    }
+}
+function addSphere(P, I, c, r, seg = 16){
+  const base = P.length/3, rings = seg>>1;
+  for(let i = 0; i <= rings; i++){
+    const phi = Math.PI*i/rings, sp = Math.sin(phi), cp = Math.cos(phi);
+    for(let j = 0; j <= seg; j++){
+      const th = 2*Math.PI*j/seg;
+      P.push(c[0]+r*sp*Math.cos(th), c[1]+r*sp*Math.sin(th), c[2]+r*cp);
+    }
+  }
+  for(let i = 0; i < rings; i++)
+    for(let j = 0; j < seg; j++){
+      const a = base + i*(seg+1) + j, b = a + seg + 1;
+      I.push(a, a+1, b,  a+1, b+1, b);
+    }
 }
 
-function repaintNeedles(){
-  if(!nv.drawBitmap) return;
-  nv.drawBitmap.fill(0);
+/** Sample the in-volume part of a trajectory; the rays are ~250 mm long, so
+ *  drawing the whole thing would trail off across the scene. */
+function needlePoints(n){
+  const {tIn, tOut} = n.span;
+  const ts = [tIn];
+  for(const c of n.path.cum) if(c > tIn && c < tOut) ts.push(c);
+  ts.push(tOut);
+  return ts.map(t => n.path.pointAt(t));
+}
+
+let needleOpacity = 0.9;
+
+function rebuildNeedleMeshes(){
   for(const n of needles){
-    if(!n.visible || !n.span) continue;
-    // draw only the in-volume part, else a 250 mm ray smears across the scene
-    const {tIn, tOut} = n.span;
-    const ts = [tIn];
-    for(const c of n.path.cum) if(c > tIn && c < tOut) ts.push(c);
-    ts.push(tOut);
-    const vx = ts.map(t => { const q = toVox(n.path.pointAt(t));
-                             return [Math.round(q[0]),Math.round(q[1]),Math.round(q[2])]; });
-    for(let i=1;i<vx.length;i++) nv.drawPenLine(vx[i-1], vx[i], n.pen);
+    if(n.mesh){ try{ nv.removeMesh(n.mesh); }catch{} n.mesh = null; }
+    if(!n.span) continue;
+    const P = [], I = [], c = n.rgb;
+    addTube(P, I, needlePoints(n), CONFIG.needle.radiusMM, CONFIG.needle.sides);
+    addSphere(P, I, n.path.pointAt(n.path.length), CONFIG.needle.targetMM);
+    try{
+      n.mesh = new NVMesh(new Float32Array(P), new Uint32Array(I), n.label,
+                          new Uint8Array([c[0], c[1], c[2], 255]),
+                          needleOpacity, n.visible, nv.gl);
+      nv.addMesh(n.mesh);
+    }catch(e){ console.warn(`needle mesh ${n.label}:`, e); }
   }
-  nv.refreshDrawing(true);
+}
+
+function setNeedleVisible(n, on){
+  n.visible = on;
+  if(n.mesh) nv.setMeshProperty(n.mesh.id, "visible", on);
+}
+
+if(needles.length){
+  try{
+    nv.opts.meshXRay = CONFIG.needle.xray;   // show needles through the 3D volume
+    rebuildNeedleMeshes();
+    nv.drawScene();
+  }catch(e){ console.warn("needle meshes unavailable:", e); }
 }
 
 /* ---------- oblique reformats ----------------------------------------- */
@@ -768,7 +917,7 @@ function renderNeedleViews(){
     const xOf = t => (t - t0)/mmPerPx;
     const mid = H/2;
     longX.save();
-    longX.strokeStyle = drawColors[sel] || "#f0b429";
+    longX.strokeStyle = n.css;
     longX.lineWidth = 2; longX.globalAlpha = .85;
     longX.beginPath(); longX.moveTo(xOf(s0), mid); longX.lineTo(xOf(Math.min(s1, path.length)), mid); longX.stroke();
     longX.globalAlpha = 1;
@@ -824,7 +973,7 @@ function renderNeedleViews(){
       xsecX.setLineDash([5,5]);
     }
     xsecX.setLineDash([]); xsecX.globalAlpha=1;
-    xsecX.strokeStyle=drawColors[sel]||"#f0b429"; xsecX.lineWidth=2;
+    xsecX.strokeStyle=n.css; xsecX.lineWidth=2;
     xsecX.beginPath(); xsecX.arc(cx,cy,4,0,7); xsecX.stroke();
     xsecX.beginPath();
     xsecX.moveTo(cx-14,cy); xsecX.lineTo(cx-7,cy); xsecX.moveTo(cx+7,cy); xsecX.lineTo(cx+14,cy);
@@ -835,7 +984,8 @@ function renderNeedleViews(){
     $("xsecNote").textContent = `${(path.length-depth).toFixed(1)} mm to target`;
   }
 
-  $("needleName").textContent = n.label;
+  $("needleName").textContent =
+    sets.length > 1 ? `${sets[n.set].label} · ${n.label}` : n.label;
 }
 
 let pending = 0;
@@ -899,6 +1049,16 @@ function updateDepth(t){
 }
 
 /* ---------- build the UI ---------------------------------------------- */
+/* Tab bar; CSS shows it only on narrow screens, where one panel fits at a
+   time. On wide screens every panel is visible and the attribute is inert. */
+const tabs = [...$("tabs").querySelectorAll("button")];
+function showPane(name){
+  document.body.dataset.pane = name;
+  tabs.forEach(b => b.setAttribute("aria-pressed", b.dataset.pane === name));
+  nv.drawScene();
+}
+tabs.forEach(b => b.onclick = () => showPane(b.dataset.pane));
+
 {
   const box = $("views");
   for(const [key,[label,type]] of Object.entries(VIEWS)){
@@ -927,17 +1087,44 @@ function updateDepth(t){
   $("width").oninput=e=>{ width=+e.target.value; applyWindow(); markPreset(); };
   applyWindow(); markPreset();
 }
+/** Header row for one set: its name, and a toggle for the whole set — the
+ *  control you actually use to flip between two plans. */
+const setToggles = new Map();
+function setHeader(si){
+  const row=document.createElement("div");
+  row.className="row setrow";
+  const on=needles.some(n=>n.set===si && n.visible);
+  const tog=document.createElement("button");
+  tog.className="toggle"; tog.setAttribute("aria-pressed",on);
+  tog.setAttribute("aria-label",`Show all of ${sets[si].label}`);
+  setToggles.set(si, tog);
+  tog.onclick=()=>{
+    for(const n of needles) if(n.set===si) setNeedleVisible(n, !on);
+    rebuildNeedleList();
+  };
+  const name=document.createElement("span");
+  name.className="name setname";
+  name.textContent=sets[si].label;
+  const num=document.createElement("span");
+  num.className="num";
+  num.textContent=`${needles.filter(n=>n.set===si).length} needles`;
+  row.append(tog,name,num);
+  return row;
+}
 function rebuildNeedleList(){
   const list=$("needleList");
   list.innerHTML="";
   if(!needles.length){ list.innerHTML=`<div class="num">none loaded</div>`; return; }
+  setToggles.clear();
+  let shown=-1;
   needles.forEach((n,i)=>{
+    if(sets.length>1 && n.set!==shown){ shown=n.set; list.append(setHeader(shown)); }
     const row=document.createElement("div");
     row.className="row";
     const pick=document.createElement("button");
-    pick.className="pick"; pick.setAttribute("aria-pressed","false");
-    pick.innerHTML=`<span class="swatch" style="display:inline-block;background:${drawColors[i]};margin-right:7px"></span>${n.label}`;
-    pick.onclick=()=>selectNeedle(i);
+    pick.className="pick"; pick.setAttribute("aria-pressed", i===sel);
+    pick.innerHTML=`<span class="swatch" style="display:inline-block;background:${n.css};margin-right:7px"></span>${n.label}`;
+    pick.onclick=()=>{ selectNeedle(i); showPane("traj"); };
     const num=document.createElement("span");
     num.className="num";
     num.textContent = n.span ? `${(n.span.tOut-n.span.tIn).toFixed(0)} mm in scan` : "outside";
@@ -945,15 +1132,21 @@ function rebuildNeedleList(){
     const vis=document.createElement("button");
     vis.className="toggle"; vis.setAttribute("aria-pressed", n.visible);
     vis.setAttribute("aria-label",`Show ${n.label} in projections`);
-    vis.onclick=()=>{ n.visible=!n.visible; vis.setAttribute("aria-pressed",n.visible); repaintNeedles(); };
+    vis.onclick=()=>{
+      setNeedleVisible(n, !n.visible);
+      vis.setAttribute("aria-pressed", n.visible);
+      setToggles.get(n.set)?.setAttribute("aria-pressed",
+        needles.some(m => m.set===n.set && m.visible));
+    };
     row.append(vis,pick,num);
     list.append(row);
   });
 }
 rebuildNeedleList();
 $("drawOp").oninput=e=>{
-  nv.setDrawOpacity(+e.target.value);
-  $("drawV").textContent=Math.round(e.target.value*100)+"%";
+  needleOpacity = +e.target.value;
+  for(const n of needles) if(n.mesh) nv.setMeshProperty(n.mesh.id, "opacity", needleOpacity);
+  $("drawV").textContent=Math.round(needleOpacity*100)+"%";
 };
 
 {
